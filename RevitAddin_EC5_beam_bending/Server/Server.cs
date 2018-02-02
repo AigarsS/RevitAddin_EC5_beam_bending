@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.CodeChecking.Storage;
+using Autodesk.Revit.DB.CodeChecking;
+using Autodesk.Revit.DB.Structure;
 
 namespace RevitAddin_EC5_beam_bending
 {
@@ -28,33 +31,57 @@ namespace RevitAddin_EC5_beam_bending
 
         public override void Verify(Autodesk.Revit.DB.CodeChecking.ServiceData data)
         {
-            Autodesk.Revit.DB.CodeChecking.Storage.StorageService service = Autodesk.Revit.DB.CodeChecking.Storage.StorageService.GetStorageService();
-            Autodesk.Revit.DB.CodeChecking.Storage.StorageDocument storageDocument = service.GetStorageDocument(data.Document);
-
-
+            StorageService service = StorageService.GetStorageService();
+            StorageDocument storageDocument = service.GetStorageDocument(data.Document);
+            CalculationParameter myParams = storageDocument.CalculationParamsManager.CalculationParams.GetEntity<CalculationParameter>(data.Document);
             foreach (Element element in data.Selection)
             {
-                Autodesk.Revit.DB.CodeChecking.Storage.Label ccLabel = storageDocument.LabelsManager.GetLabel(element);
+                BuiltInCategory category = Tools.GetCategoryOfElement(element);
+                StructuralAssetClass material = Tools.GetClassMaterialOfElement(element);
+                if (material != StructuralAssetClass.Wood || category != BuiltInCategory.OST_BeamAnalytical) continue;
 
+                Autodesk.Revit.DB.CodeChecking.Storage.Label ccLabel = storageDocument.LabelsManager.GetLabel(element);
                 if (ccLabel != null)
                 {
                     Label myLabel = ccLabel.GetEntity<Label>(data.Document);
-
                     if (myLabel != null)
                     {
-                        CalculationParameter myParams = storageDocument.CalculationParamsManager.CalculationParams.GetEntity<CalculationParameter>(data.Document);
-
-                        Result myResult = new Result();
-
-                        storageDocument.ResultsManager.SetResult(myResult.GetEntity(), element);
+                        Calculate(myParams, myLabel, element, storageDocument.ResultsManager);
                     }
                 }
             }
         }
 
+        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager)
+        {
+            Result result = new Result();
+            Material mat = Tools.GetMaterialOfElement(element);
+            PropertySetElement propertySetElement = mat.Document.GetElement(mat.StructuralAssetId) as PropertySetElement;
+            StructuralAsset structuralAsset = propertySetElement.GetStructuralAsset();
+            result.fmk = UnitUtils.ConvertFromInternalUnits(structuralAsset.WoodBendingStrength, DisplayUnitType.DUT_PASCALS);
+            result.fc0k = UnitUtils.ConvertFromInternalUnits(structuralAsset.WoodParallelCompressionStrength, DisplayUnitType.DUT_PASCALS);
+
+            AnalyticalModel analyticalModel = element as AnalyticalModel;
+            FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
+            Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
+
+            //if (parameterA != null)
+            //{
+            //    result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
+            //    result.Anet = result.A; //- label.Aholes;
+            //    result.Nplrd = result.A * result.fmk / parameters.gammaM;
+            //    result.Nurd = 0.9 * result.Anet * result.fc0k / parameters.PartialFactor2;
+            //    result.Nrd = Math.Min(result.Nplrd, result.Nurd);
+            //    result.Ratio = 1; //label.N / result.Nrd;
+            //    ResultStatus status = new ResultStatus(ID);
+            //    status.SetStatusRatioBased(result.Ratio);
+            //    manager.SetResult(result.GetEntity(), element, status);
+            //}
+        }
+
         public override IList<BuiltInCategory> GetSupportedCategories(StructuralAssetClass material)
         {
-            return new List<BuiltInCategory>() { BuiltInCategory.OST_ColumnAnalytical, BuiltInCategory.OST_BeamAnalytical, BuiltInCategory.OST_WallAnalytical, BuiltInCategory.OST_FloorAnalytical, BuiltInCategory.OST_WallFoundationAnalytical, BuiltInCategory.OST_IsolatedFoundationAnalytical };
+            return new List<BuiltInCategory>() { BuiltInCategory.OST_BeamAnalytical};
         }
 
         public override IList<Autodesk.Revit.DB.StructuralAssetClass> GetSupportedMaterials()
