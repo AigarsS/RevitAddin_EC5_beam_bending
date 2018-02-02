@@ -19,7 +19,7 @@ namespace RevitAddin_EC5_beam_bending
             Description = "@g{M}",
             ValidateMinimumValue = true,
             MinimumValue = 0,
-            AttributeUnit = DisplayUnitType.DUT_1_RATIO,
+            AttributeUnit = DisplayUnitType.DUT_GENERAL,
             Category = "Data")]
         [ValueWithName(Name = "@g{M}")]
         public Double gammaM { get; set; }

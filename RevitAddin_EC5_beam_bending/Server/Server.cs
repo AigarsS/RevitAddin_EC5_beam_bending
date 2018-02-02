@@ -7,23 +7,16 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.CodeChecking.Storage;
 using Autodesk.Revit.DB.CodeChecking;
 using Autodesk.Revit.DB.Structure;
+using Autodesk.Revit.DB.ResultsBuilder;
+using Autodesk.Revit.DB.ResultsBuilder.Storage;
 
 namespace RevitAddin_EC5_beam_bending
 {
     [Autodesk.Revit.DB.CodeChecking.Attributes.ServerVersion(1)]
     [Autodesk.Revit.DB.CodeChecking.Attributes.CalculationParamsStructure(typeof(CalculationParameter))]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_ColumnAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_ColumnAnalytical, StructuralAssetClass.Basic)]
     [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Basic)]
     [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_WallAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_WallAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_FloorAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_FloorAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_WallFoundationAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_WallFoundationAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_IsolatedFoundationAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_IsolatedFoundationAnalytical, StructuralAssetClass.Basic)]
+
     public class Server : Autodesk.Revit.DB.CodeChecking.Documentation.MultiStructureServer
     {
         public static readonly Guid ID = new Guid("8e273cf2-f9a0-45b5-9e83-b1a0068d56b5");
@@ -31,9 +24,52 @@ namespace RevitAddin_EC5_beam_bending
 
         public override void Verify(Autodesk.Revit.DB.CodeChecking.ServiceData data)
         {
+
             StorageService service = StorageService.GetStorageService();
             StorageDocument storageDocument = service.GetStorageDocument(data.Document);
             CalculationParameter myParams = storageDocument.CalculationParamsManager.CalculationParams.GetEntity<CalculationParameter>(data.Document);
+
+            List<ElementId> loadCasesAndCombinations = storageDocument.CalculationParamsManager.CalculationParams.GetLoadCasesAndCombinations(ID);
+            foreach (ElementId id in loadCasesAndCombinations)
+            {
+                Element loadCaseCombinationElement = data.Document.GetElement(id);
+                LoadCase loadCase = loadCaseCombinationElement as LoadCase;
+                LoadCombination loadCombination = loadCaseCombinationElement as LoadCombination;
+            }
+
+            ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
+            var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My });
+
+
+            var loads = resultsMy.GroupBy(s => s.LoadId);
+            double maxMy = 0;
+
+            foreach (IGrouping<ElementId, LineGraph> load in loads)
+            {
+                foreach (LineGraph lineGraph in load)
+                {
+                    foreach (double value in lineGraph.Points.Select(s => s.V))
+                    {
+                        if (maxMy <= value)
+                        {
+                            maxMy = value;
+                        }
+                    }
+                }
+            }
+
+
+
+            //    using (System.IO.StreamWriter writer = new System.IO.StreamWriter(@"C:\Users\AigarsS\Desktop\test.txt", false))
+            //{
+            //    writer.WriteLine(maxMy);
+
+            //}
+
+            ResultsPackageBuilder builder = storageDocument.CalculationParamsManager.CalculationParams.GetOutputResultPackageBuilder(ID);
+            //do something here
+            builder.Finish();
+
             foreach (Element element in data.Selection)
             {
                 BuiltInCategory category = Tools.GetCategoryOfElement(element);
@@ -46,13 +82,13 @@ namespace RevitAddin_EC5_beam_bending
                     Label myLabel = ccLabel.GetEntity<Label>(data.Document);
                     if (myLabel != null)
                     {
-                        Calculate(myParams, myLabel, element, storageDocument.ResultsManager);
+                        Calculate(myParams, myLabel, element, storageDocument.ResultsManager,maxMy);
                     }
                 }
             }
         }
 
-        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager)
+        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double maxMy)
         {
             Result result = new Result();
             Material mat = Tools.GetMaterialOfElement(element);
@@ -66,17 +102,17 @@ namespace RevitAddin_EC5_beam_bending
             Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
 
             //if (parameterA != null)
-            //{
+            {
             //    result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
             //    result.Anet = result.A; //- label.Aholes;
             //    result.Nplrd = result.A * result.fmk / parameters.gammaM;
             //    result.Nurd = 0.9 * result.Anet * result.fc0k / parameters.PartialFactor2;
-            //    result.Nrd = Math.Min(result.Nplrd, result.Nurd);
-            //    result.Ratio = 1; //label.N / result.Nrd;
-            //    ResultStatus status = new ResultStatus(ID);
-            //    status.SetStatusRatioBased(result.Ratio);
-            //    manager.SetResult(result.GetEntity(), element, status);
-            //}
+                result.Nrd = maxMy;
+                result.Ratio = 1; //label.N / result.Nrd;
+                ResultStatus status = new ResultStatus(ID);
+                status.SetStatusRatioBased(result.Ratio);
+                manager.SetResult(result.GetEntity(), element, status);
+            }
         }
 
         public override IList<BuiltInCategory> GetSupportedCategories(StructuralAssetClass material)

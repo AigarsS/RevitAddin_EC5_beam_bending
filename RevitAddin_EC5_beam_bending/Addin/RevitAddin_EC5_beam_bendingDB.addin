@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>RevitAddin_EC5_beam_bending</Name>
+    <Assembly>..\RevitAddin_EC5_beam_bending.dll</Assembly>
+    <AddInId>e0972348-5967-45f1-b4ab-81af5d23cad2</AddInId>
+    <FullClassName>RevitAddin_EC5_beam_bending.RevitApplicationDB</FullClassName>
+    <VendorId>John Smith</VendorId>
+    <VendorDescription>John Smith</VendorDescription>
+  </AddIn>
+</RevitAddIns>
+
