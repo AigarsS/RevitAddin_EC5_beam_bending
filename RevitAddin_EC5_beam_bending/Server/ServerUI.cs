@@ -8,7 +8,7 @@ using Autodesk.Revit.DB;
 namespace RevitAddin_EC5_beam_bending
 {
     [Autodesk.Revit.DB.CodeChecking.Attributes.CalculationParamsStructure(typeof(CalculationParameter))]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Basic)]
+    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Wood)]
 
     public class ServerUI : Autodesk.Revit.UI.CodeChecking.MultiStructureServer
     {

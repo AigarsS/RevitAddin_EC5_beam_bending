@@ -14,8 +14,8 @@ namespace RevitAddin_EC5_beam_bending
 {
     [Autodesk.Revit.DB.CodeChecking.Attributes.ServerVersion(1)]
     [Autodesk.Revit.DB.CodeChecking.Attributes.CalculationParamsStructure(typeof(CalculationParameter))]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Basic)]
-    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Basic)]
+    [Autodesk.Revit.DB.CodeChecking.Attributes.LabelStructure(typeof(Label), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Wood)]
+    [Autodesk.Revit.DB.CodeChecking.Attributes.ResultStructure(typeof(Result), BuiltInCategory.OST_BeamAnalytical, StructuralAssetClass.Wood)]
 
     public class Server : Autodesk.Revit.DB.CodeChecking.Documentation.MultiStructureServer
     {
@@ -122,7 +122,7 @@ namespace RevitAddin_EC5_beam_bending
 
         public override IList<Autodesk.Revit.DB.StructuralAssetClass> GetSupportedMaterials()
         {
-            return new List<Autodesk.Revit.DB.StructuralAssetClass>() { StructuralAssetClass.Basic };
+            return new List<Autodesk.Revit.DB.StructuralAssetClass>() { StructuralAssetClass.Wood };
         }
 
         public override bool LoadCasesAndCombinationsSupport()
