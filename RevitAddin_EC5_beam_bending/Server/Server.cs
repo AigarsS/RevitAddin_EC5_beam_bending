@@ -40,31 +40,24 @@ namespace RevitAddin_EC5_beam_bending
             ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
             var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My });
 
-
+            // Getting maximum bending moment from results Package (for only one selected element for now!!!)
             var loads = resultsMy.GroupBy(s => s.LoadId);
             double maxMy = 0;
-
             foreach (IGrouping<ElementId, LineGraph> load in loads)
             {
                 foreach (LineGraph lineGraph in load)
                 {
-                    foreach (double value in lineGraph.Points.Select(s => s.V))
-                    {
-                        if (maxMy <= value)
-                        {
-                            maxMy = value;
-                        }
-                    }
+                    maxMy = lineGraph.Points.Max(s => s.V);
                 }
             }
 
 
+            //writing text file for tes purposes
+            using (System.IO.StreamWriter writer = new System.IO.StreamWriter(@"C:\Users\Aigars\Desktop\test.txt", false))
+            {
+                writer.WriteLine(maxMy);
 
-            //    using (System.IO.StreamWriter writer = new System.IO.StreamWriter(@"C:\Users\AigarsS\Desktop\test.txt", false))
-            //{
-            //    writer.WriteLine(maxMy);
-
-            //}
+            }
 
             ResultsPackageBuilder builder = storageDocument.CalculationParamsManager.CalculationParams.GetOutputResultPackageBuilder(ID);
             //do something here
@@ -99,16 +92,20 @@ namespace RevitAddin_EC5_beam_bending
 
             AnalyticalModel analyticalModel = element as AnalyticalModel;
             FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
-            Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
+            Parameter parameterA = familyInstance.Symbol.GetParameters("A").First();
+            Parameter parameterWy = familyInstance.Symbol.GetParameters("Wy").Max();
+            
 
-            //if (parameterA != null)
+            if (parameterA != null)
             {
-            //    result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
-            //    result.Anet = result.A; //- label.Aholes;
-            //    result.Nplrd = result.A * result.fmk / parameters.gammaM;
-            //    result.Nurd = 0.9 * result.Anet * result.fc0k / parameters.PartialFactor2;
-                result.Nrd = maxMy;
-                result.Ratio = 1; //label.N / result.Nrd;
+                result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
+                result.MEd = maxMy;
+                result.Wy = UnitUtils.ConvertFromInternalUnits(parameterWy.AsDouble(),DisplayUnitType.DUT_CUBIC_CENTIMETERS);
+                result.fmd = result.fmk/parameters.gammaM;
+                result.sigmaMyd = result.MEd*1000000 / result.Wy;
+                result.Ratio = result.sigmaMyd / result.fmd;
+
+
                 ResultStatus status = new ResultStatus(ID);
                 status.SetStatusRatioBased(result.Ratio);
                 manager.SetResult(result.GetEntity(), element, status);

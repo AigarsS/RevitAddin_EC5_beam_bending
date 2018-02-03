@@ -12,21 +12,21 @@ namespace RevitAddin_EC5_beam_bending
     [Autodesk.Revit.DB.ExtensibleStorage.Framework.Attributes.Schema("Result", "bbe5870b-bb46-4bfd-a272-ec43beaf395a")]
     public class Result : Autodesk.Revit.DB.ExtensibleStorage.Framework.SchemaClass
     {
-        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Force, DisplayUnit = DisplayUnitType.DUT_NEWTONS)]
-        [ValueWithName(Name = "N{pl,Rd}", Index = 5)]
-        public Double Nplrd { get; set; }
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Stress, DisplayUnit = DisplayUnitType.DUT_PASCALS)]
+        [ValueWithName(Name = "@s{m,y,d}", Index = 5)]
+        public Double sigmaMyd { get; set; }
 
-        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Force, DisplayUnit = DisplayUnitType.DUT_NEWTONS)]
-        [ValueWithName(Name = "N{u,Rd}", Index = 6)]
-        public Double Nurd { get; set; }
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Moment, DisplayUnit = DisplayUnitType.DUT_NEWTON_METERS)]
+        [ValueWithName(Name = "M{Ed}", Index = 6)]
+        public Double MEd { get; set; }
 
-        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Force, DisplayUnit = DisplayUnitType.DUT_NEWTONS)]
-        [ValueWithName(Name = "N{Rd}", Index = 7)]
-        public Double Nrd { get; set; }
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Stress, DisplayUnit = DisplayUnitType.DUT_PASCALS)]
+        [ValueWithName(Name = "f{m,d}", Index = 7)]
+        public Double fmd { get; set; }
 
-        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Section_Area, DisplayUnit = DisplayUnitType.DUT_SQUARE_METERS)]
-        [ValueWithName(Name = "A{net}", Index = 2)]
-        public Double Anet { get; set; }
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Section_Modulus, DisplayUnit = DisplayUnitType.DUT_CUBIC_CENTIMETERS)]
+        [ValueWithName(Name = "W{y}", Index = 2)]
+        public Double Wy { get; set; }
 
         [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Section_Area, DisplayUnit = DisplayUnitType.DUT_SQUARE_METERS)]
         [ValueWithName(Index = 0)]

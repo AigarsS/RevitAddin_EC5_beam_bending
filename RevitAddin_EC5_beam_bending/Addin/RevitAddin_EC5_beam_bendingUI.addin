@@ -2,7 +2,7 @@
 <RevitAddIns>
   <AddIn Type="Application">
     <Name>RevitAddin_EC5_beam_bending</Name>
-    <Assembly>..\RevitAddin_EC5_beam_bending.dll</Assembly>
+    <Assembly>C:\Users\Aigars\Documents\RevitAddin_EC5_beam_bending\RevitAddin_EC5_beam_bending\bin\Debug\RevitAddin_EC5_beam_bending.dll</Assembly>
     <AddInId>d4c932f5-c725-4c00-9148-6227d730dd36</AddInId>
     <FullClassName>RevitAddin_EC5_beam_bending.RevitApplicationUI</FullClassName>
     <VendorId>John Smith</VendorId>
