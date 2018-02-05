@@ -38,8 +38,14 @@ namespace RevitAddin_EC5_beam_bending
             }
 
             ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
-            var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My });
-            var elemIDs = resultsMy.GroupBy(s => s.ElementId);
+            var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My, LinearResultType.Mz, LinearResultType.Fx });
+            var loads = resultsMy.GroupBy(s => s.LoadId);
+            double maxMy = 0;
+            double maxMz = 0;
+            double maxN = 0;
+
+
+            StringBuilder res = new StringBuilder();
 
             foreach (Element element in data.Selection)
             {
@@ -53,16 +59,28 @@ namespace RevitAddin_EC5_beam_bending
                     Label myLabel = ccLabel.GetEntity<Label>(data.Document);
                     if (myLabel != null)
                     {
-                        double maxMy = 0;
-                        foreach (IGrouping<ElementId, LineGraph> value in elemIDs)
+                        
+                        foreach (IGrouping<ElementId, LineGraph> load in loads)
                         {
-                            foreach (LineGraph lineGraph in value)
+                            foreach (LineGraph lineGraph in load)
                             {
-                                if (lineGraph.ElementId == element.Id)
+
+                                if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.My)
                                 {
                                     maxMy = lineGraph.Points.Max(s => s.V);
-                                    Calculate(myParams, myLabel, element, storageDocument.ResultsManager, maxMy);
                                 }
+
+                                if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.Mz)
+                                {
+                                    maxMz = lineGraph.Points.Min(s => s.V);
+                                }
+
+                                if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.Fx)
+                                {
+                                    maxN = lineGraph.Points.Min(s => s.V);
+                                }
+
+                                Calculate(myParams, myLabel, element, storageDocument.ResultsManager, maxMy, maxMz, maxN);
                             }
                         }
                     }
@@ -75,7 +93,7 @@ namespace RevitAddin_EC5_beam_bending
 
         }
 
-        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double maxMy)
+        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double maxMy, double maxMz, double maxN)
         {
             Result result = new Result();
             Material mat = Tools.GetMaterialOfElement(element);
@@ -88,16 +106,24 @@ namespace RevitAddin_EC5_beam_bending
             FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
             Parameter parameterA = familyInstance.Symbol.GetParameters("A").First();
             Parameter parameterWy = familyInstance.Symbol.GetParameters("Wy").Max();
+            Parameter parameterWz = familyInstance.Symbol.GetParameters("Wz").Max();
             
 
             if (parameterA != null)
             {
                 result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
-                result.MEd = maxMy;
+                result.MyEd = Math.Abs(maxMy);
+                result.MzEd = Math.Abs(maxMz);
+                result.NEd = Math.Abs(maxN);
                 result.Wy = UnitUtils.ConvertFromInternalUnits(parameterWy.AsDouble(),DisplayUnitType.DUT_CUBIC_CENTIMETERS);
+                result.Wz = UnitUtils.ConvertFromInternalUnits(parameterWz.AsDouble(), DisplayUnitType.DUT_CUBIC_CENTIMETERS);
                 result.fmd = result.fmk/parameters.gammaM;
-                result.sigmaMyd = result.MEd*1000000 / result.Wy;
-                result.Ratio = result.sigmaMyd / result.fmd;
+                result.sigmaMyd = result.MyEd*1000000 / result.Wy;
+                result.sigmaMzd = result.MzEd * 1000000 / result.Wz;
+                result.sigmaC0d = result.NEd / result.A;
+
+
+                result.Ratio = result.sigmaMyd / result.fmd + result.sigmaMzd / result.fmd + Math.Pow(result.sigmaC0d /(result.fc0k/parameters.gammaM),2);
 
 
                 ResultStatus status = new ResultStatus(ID);
