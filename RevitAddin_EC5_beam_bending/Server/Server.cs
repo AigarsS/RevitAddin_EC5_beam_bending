@@ -39,29 +39,7 @@ namespace RevitAddin_EC5_beam_bending
 
             ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
             var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My });
-
-            // Getting maximum bending moment from results Package (for only one selected element for now!!!)
-            var loads = resultsMy.GroupBy(s => s.LoadId);
-            double maxMy = 0;
-            foreach (IGrouping<ElementId, LineGraph> load in loads)
-            {
-                foreach (LineGraph lineGraph in load)
-                {
-                    maxMy = lineGraph.Points.Max(s => s.V);
-                }
-            }
-
-
-            //writing text file for tes purposes
-            using (System.IO.StreamWriter writer = new System.IO.StreamWriter(@"C:\Users\Aigars\Desktop\test.txt", false))
-            {
-                writer.WriteLine(maxMy);
-
-            }
-
-            ResultsPackageBuilder builder = storageDocument.CalculationParamsManager.CalculationParams.GetOutputResultPackageBuilder(ID);
-            //do something here
-            builder.Finish();
+            var elemIDs = resultsMy.GroupBy(s => s.ElementId);
 
             foreach (Element element in data.Selection)
             {
@@ -75,10 +53,26 @@ namespace RevitAddin_EC5_beam_bending
                     Label myLabel = ccLabel.GetEntity<Label>(data.Document);
                     if (myLabel != null)
                     {
-                        Calculate(myParams, myLabel, element, storageDocument.ResultsManager,maxMy);
+                        double maxMy = 0;
+                        foreach (IGrouping<ElementId, LineGraph> value in elemIDs)
+                        {
+                            foreach (LineGraph lineGraph in value)
+                            {
+                                if (lineGraph.ElementId == element.Id)
+                                {
+                                    maxMy = lineGraph.Points.Max(s => s.V);
+                                    Calculate(myParams, myLabel, element, storageDocument.ResultsManager, maxMy);
+                                }
+                            }
+                        }
                     }
                 }
             }
+
+            ResultsPackageBuilder builder = storageDocument.CalculationParamsManager.CalculationParams.GetOutputResultPackageBuilder(ID);
+            //do something here
+            builder.Finish();
+
         }
 
         void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double maxMy)
