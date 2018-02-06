@@ -40,12 +40,10 @@ namespace RevitAddin_EC5_beam_bending
             ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
             var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My, LinearResultType.Mz, LinearResultType.Fx });
             var loads = resultsMy.GroupBy(s => s.LoadId);
-            double maxMy = 0;
-            double maxMz = 0;
-            double maxN = 0;
-
-
-            StringBuilder res = new StringBuilder();
+            
+            double elemMY = 0;
+            double elemMZ = 0;
+            double elemN = 0;
 
             foreach (Element element in data.Selection)
             {
@@ -64,23 +62,31 @@ namespace RevitAddin_EC5_beam_bending
                         {
                             foreach (LineGraph lineGraph in load)
                             {
-
                                 if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.My)
                                 {
-                                    maxMy = lineGraph.Points.Max(s => s.V);
+                                    double minMy = lineGraph.Points.Min(s => s.V);
+                                    double maxMy = lineGraph.Points.Max(s => s.V);
+                                    if (Math.Abs(minMy) > Math.Abs(maxMy)){ elemMY = Math.Abs(minMy);}
+                                    else { elemMY = Math.Abs(maxMy); }
                                 }
 
                                 if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.Mz)
                                 {
-                                    maxMz = lineGraph.Points.Min(s => s.V);
+                                    double minMz = lineGraph.Points.Min(s => s.V);
+                                    double maxMz = lineGraph.Points.Max(s => s.V);
+                                    if (Math.Abs(minMz) > Math.Abs(maxMz)) { elemMZ = Math.Abs(minMz); }
+                                    else { elemMZ = Math.Abs(maxMz); }
                                 }
 
                                 if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.Fx)
                                 {
-                                    maxN = lineGraph.Points.Min(s => s.V);
+                                    double minN = lineGraph.Points.Min(s => s.V);
+                                    double maxN = lineGraph.Points.Max(s => s.V);
+                                    if (Math.Abs(minN) > Math.Abs(maxN)) { elemN = Math.Abs(minN); }
+                                    else { elemN = Math.Abs(maxN); }
                                 }
 
-                                Calculate(myParams, myLabel, element, storageDocument.ResultsManager, maxMy, maxMz, maxN);
+                                Calculate(myParams, myLabel, element, storageDocument.ResultsManager, elemMY, elemMZ, elemN);
                             }
                         }
                     }
@@ -93,28 +99,36 @@ namespace RevitAddin_EC5_beam_bending
 
         }
 
-        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double maxMy, double maxMz, double maxN)
+        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double elemMY, double elemMZ, double elemN)
         {
             Result result = new Result();
             Material mat = Tools.GetMaterialOfElement(element);
             PropertySetElement propertySetElement = mat.Document.GetElement(mat.StructuralAssetId) as PropertySetElement;
             StructuralAsset structuralAsset = propertySetElement.GetStructuralAsset();
+            
             result.fmk = UnitUtils.ConvertFromInternalUnits(structuralAsset.WoodBendingStrength, DisplayUnitType.DUT_PASCALS);
             result.fc0k = UnitUtils.ConvertFromInternalUnits(structuralAsset.WoodParallelCompressionStrength, DisplayUnitType.DUT_PASCALS);
 
             AnalyticalModel analyticalModel = element as AnalyticalModel;
             FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
-            Parameter parameterA = familyInstance.Symbol.GetParameters("A").First();
+            
+            Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
             Parameter parameterWy = familyInstance.Symbol.GetParameters("Wy").Max();
             Parameter parameterWz = familyInstance.Symbol.GetParameters("Wz").Max();
+            Parameter paramSectionShape = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_SHAPE);
             
+            double km = 1;
+            if (paramSectionShape.AsInteger() == 31)
+            {
+                km = 0.7;
+            }
 
-            if (parameterA != null)
+            if (parameterA != null && parameterWy != null && parameterWz != null)
             {
                 result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
-                result.MyEd = Math.Abs(maxMy);
-                result.MzEd = Math.Abs(maxMz);
-                result.NEd = Math.Abs(maxN);
+                result.MyEd = Math.Abs(elemMY);
+                result.MzEd = Math.Abs(elemMZ);
+                result.NEd = Math.Abs(elemN);
                 result.Wy = UnitUtils.ConvertFromInternalUnits(parameterWy.AsDouble(),DisplayUnitType.DUT_CUBIC_CENTIMETERS);
                 result.Wz = UnitUtils.ConvertFromInternalUnits(parameterWz.AsDouble(), DisplayUnitType.DUT_CUBIC_CENTIMETERS);
                 result.fmd = result.fmk/parameters.gammaM;
@@ -123,11 +137,12 @@ namespace RevitAddin_EC5_beam_bending
                 result.sigmaC0d = result.NEd / result.A;
 
 
-                result.Ratio = result.sigmaMyd / result.fmd + result.sigmaMzd / result.fmd + Math.Pow(result.sigmaC0d /(result.fc0k/parameters.gammaM),2);
+                result.Ratio1 = km*result.sigmaMyd / result.fmd + result.sigmaMzd / result.fmd + Math.Pow(result.sigmaC0d /(result.fc0k/parameters.gammaM),2);
+                result.Ratio2 = result.sigmaMyd / result.fmd + km * result.sigmaMzd / result.fmd + Math.Pow(result.sigmaC0d / (result.fc0k / parameters.gammaM), 2);
 
 
                 ResultStatus status = new ResultStatus(ID);
-                status.SetStatusRatioBased(result.Ratio);
+                status.SetStatusRatioBased(result.Ratio1);
                 manager.SetResult(result.GetEntity(), element, status);
             }
         }

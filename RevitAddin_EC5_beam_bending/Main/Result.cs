@@ -64,7 +64,11 @@ namespace RevitAddin_EC5_beam_bending
 
         [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Number, DisplayUnit = DisplayUnitType.DUT_1_RATIO)]
         [Ratio(Index = 12)]
-        public Double Ratio { get; set; }
+        public Double Ratio1 { get; set; }
+
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Number, DisplayUnit = DisplayUnitType.DUT_1_RATIO)]
+        [Ratio(Index = 13)]
+        public Double Ratio2 { get; set; }
 
         public Result()
         {
