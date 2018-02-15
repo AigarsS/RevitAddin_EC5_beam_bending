@@ -70,6 +70,26 @@ namespace RevitAddin_EC5_beam_bending
         [Ratio(Index = 13)]
         public Double Ratio2 { get; set; }
 
+
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Force, DisplayUnit = DisplayUnitType.DUT_NEWTONS)]
+        [ValueWithName(Name = "V{z,Ed}", Index = 14)]
+        public Double Vzd { get; set; }
+
+
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Stress, DisplayUnit = DisplayUnitType.DUT_PASCALS)]
+        [ValueWithName(Name = "f{v,0,k}", Index = 15)]
+        public Double fv0k { get; set; }
+
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Stress, DisplayUnit = DisplayUnitType.DUT_PASCALS)]
+        [ValueWithName(Name = "f{v,d}", Index = 16)]
+        public Double fvd { get; set; }
+
+        [SchemaProperty(Unit = Autodesk.Revit.DB.UnitType.UT_Number, DisplayUnit = DisplayUnitType.DUT_1_RATIO)]
+        [Ratio(Index = 17)]
+        public Double Ratio3 { get; set; }
+
+
+
         public Result()
         {
         }

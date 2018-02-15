@@ -38,12 +38,13 @@ namespace RevitAddin_EC5_beam_bending
             }
 
             ResultsPackage inputPackage = storageDocument.CalculationParamsManager.CalculationParams.GetInputResultPackage(ID);
-            var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My, LinearResultType.Mz, LinearResultType.Fx });
+            var resultsMy = inputPackage.GetLineGraphs(data.Selection.Select(o => o.Id).ToList(), loadCasesAndCombinations, new List<LinearResultType> { LinearResultType.My, LinearResultType.Mz, LinearResultType.Fx, LinearResultType.Fz });
             var loads = resultsMy.GroupBy(s => s.LoadId);
             
             double elemMY = 0;
             double elemMZ = 0;
             double elemN = 0;
+            double elemVZ = 0;
 
             foreach (Element element in data.Selection)
             {
@@ -86,7 +87,17 @@ namespace RevitAddin_EC5_beam_bending
                                     else { elemN = Math.Abs(maxN); }
                                 }
 
-                                Calculate(myParams, myLabel, element, storageDocument.ResultsManager, elemMY, elemMZ, elemN);
+                                if (lineGraph.ElementId == element.Id && lineGraph.ResultType == LinearResultType.Fz)
+                                {
+                                    double minVz = lineGraph.Points.Min(s => s.V);
+                                    double maxVz = lineGraph.Points.Max(s => s.V);
+                                    if (Math.Abs(minVz) > Math.Abs(maxVz)) { elemVZ = Math.Abs(minVz); }
+                                    else { elemVZ= Math.Abs(maxVz); }
+                                }
+                                Result result = new Result();
+                                CalculateBending(result, myParams, myLabel, element, storageDocument.ResultsManager, elemMY, elemMZ, elemN);
+                                CalculateShear(result, myParams, myLabel, element, storageDocument.ResultsManager, elemVZ);
+                                
                             }
                         }
                     }
@@ -99,9 +110,8 @@ namespace RevitAddin_EC5_beam_bending
 
         }
 
-        void Calculate(CalculationParameter parameters, Label label, Element element, ResultsManager manager, double elemMY, double elemMZ, double elemN)
+        void CalculateBending(Result result,CalculationParameter parameters, Label label, Element element, ResultsManager manager, double elemMY, double elemMZ, double elemN)
         {
-            Result result = new Result();
             Material mat = Tools.GetMaterialOfElement(element);
             PropertySetElement propertySetElement = mat.Document.GetElement(mat.StructuralAssetId) as PropertySetElement;
             StructuralAsset structuralAsset = propertySetElement.GetStructuralAsset();
@@ -112,10 +122,18 @@ namespace RevitAddin_EC5_beam_bending
             AnalyticalModel analyticalModel = element as AnalyticalModel;
             FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
             
-            Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
-            Parameter parameterWy = familyInstance.Symbol.GetParameters("Wy").Max();
-            Parameter parameterWz = familyInstance.Symbol.GetParameters("Wz").Max();
+            Double parameterWidth = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_COMMON_WIDTH).AsDouble();
+            Double parameterHeight = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_COMMON_HEIGHT).AsDouble();
             Parameter paramSectionShape = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_SHAPE);
+
+            //Parameter parameterA = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_AREA);
+            //Parameter parameterWy = familyInstance.Symbol.GetParameters("Wy").Max();
+            //Parameter parameterWz = familyInstance.Symbol.GetParameters("Wz").Max();
+
+            double Wy = parameterWidth * Math.Pow(parameterHeight, 2) / 6;
+            double Wz = parameterHeight * Math.Pow(parameterWidth, 2) / 6;
+            double A = parameterWidth * parameterHeight;
+
             
             double km = 1;
             if (paramSectionShape.AsInteger() == 31)
@@ -123,14 +141,14 @@ namespace RevitAddin_EC5_beam_bending
                 km = 0.7;
             }
 
-            if (parameterA != null && parameterWy != null && parameterWz != null)
+            if (A != 0)
             {
-                result.A = UnitUtils.ConvertFromInternalUnits(parameterA.AsDouble(), DisplayUnitType.DUT_SQUARE_METERS);
+                result.A = UnitUtils.ConvertFromInternalUnits(A, DisplayUnitType.DUT_SQUARE_METERS);
                 result.MyEd = Math.Abs(elemMY);
                 result.MzEd = Math.Abs(elemMZ);
                 result.NEd = Math.Abs(elemN);
-                result.Wy = UnitUtils.ConvertFromInternalUnits(parameterWy.AsDouble(),DisplayUnitType.DUT_CUBIC_CENTIMETERS);
-                result.Wz = UnitUtils.ConvertFromInternalUnits(parameterWz.AsDouble(), DisplayUnitType.DUT_CUBIC_CENTIMETERS);
+                result.Wy = UnitUtils.ConvertFromInternalUnits(Wy,DisplayUnitType.DUT_CUBIC_CENTIMETERS);
+                result.Wz = UnitUtils.ConvertFromInternalUnits(Wz, DisplayUnitType.DUT_CUBIC_CENTIMETERS);
                 result.fmd = result.fmk/parameters.gammaM;
                 result.sigmaMyd = result.MyEd*1000000 / result.Wy;
                 result.sigmaMzd = result.MzEd * 1000000 / result.Wz;
@@ -145,6 +163,39 @@ namespace RevitAddin_EC5_beam_bending
                 status.SetStatusRatioBased(result.Ratio1);
                 manager.SetResult(result.GetEntity(), element, status);
             }
+        }
+
+        void CalculateShear(Result result, CalculationParameter parameters, Label label, Element element, ResultsManager manager, double elemVz)
+        {
+
+            Material mat = Tools.GetMaterialOfElement(element);
+            PropertySetElement propertySetElement = mat.Document.GetElement(mat.StructuralAssetId) as PropertySetElement;
+            StructuralAsset structuralAsset = propertySetElement.GetStructuralAsset();
+
+            result.fv0k = UnitUtils.ConvertFromInternalUnits(structuralAsset.WoodParallelShearStrength, DisplayUnitType.DUT_PASCALS);
+            result.fvd = result.fv0k / parameters.gammaM;
+
+            AnalyticalModel analyticalModel = element as AnalyticalModel;
+            FamilyInstance familyInstance = element.Document.GetElement(analyticalModel.GetElementId()) as FamilyInstance;
+
+            Double parameterWidth = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_COMMON_WIDTH).AsDouble();
+            Double parameterHeight = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_COMMON_HEIGHT).AsDouble();
+            Parameter paramSectionShape = familyInstance.Symbol.get_Parameter(BuiltInParameter.STRUCTURAL_SECTION_SHAPE);
+
+            result.Vzd = elemVz;
+
+            double b_cr = 0.67 * parameterWidth;
+            double S_bry = b_cr * Math.Pow(parameterHeight, 2) / 8;
+            double I_y = b_cr * Math.Pow(parameterHeight, 3) / 12;
+            double thau_d = elemVz * S_bry / (b_cr * I_y);
+
+            result.Ratio3 = thau_d / result.fvd;
+
+            ResultStatus status = new ResultStatus(ID);
+            status.SetStatusRatioBased(result.Ratio1);
+            manager.SetResult(result.GetEntity(), element, status);
+
+
         }
 
         public override IList<BuiltInCategory> GetSupportedCategories(StructuralAssetClass material)
