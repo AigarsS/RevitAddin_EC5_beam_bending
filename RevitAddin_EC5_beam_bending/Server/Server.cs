@@ -9,6 +9,7 @@ using Autodesk.Revit.DB.CodeChecking;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.DB.ResultsBuilder;
 using Autodesk.Revit.DB.ResultsBuilder.Storage;
+using Autodesk.Revit.DB.ExtensibleStorage.Framework.Documentation;
 
 namespace RevitAddin_EC5_beam_bending
 {
@@ -22,7 +23,7 @@ namespace RevitAddin_EC5_beam_bending
         public static readonly Guid ID = new Guid("8e273cf2-f9a0-45b5-9e83-b1a0068d56b5");
         #region ICodeCheckingServer Members
 
-        public override void Verify(Autodesk.Revit.DB.CodeChecking.ServiceData data)
+        public override void Verify(ServiceData data)
         {
 
             StorageService service = StorageService.GetStorageService();
@@ -94,15 +95,22 @@ namespace RevitAddin_EC5_beam_bending
                                     if (Math.Abs(minVz) > Math.Abs(maxVz)) { elemVZ = Math.Abs(minVz); }
                                     else { elemVZ= Math.Abs(maxVz); }
                                 }
-                                Result result = new Result();
-                                CalculateBending(result, myParams, myLabel, element, storageDocument.ResultsManager, elemMY, elemMZ, elemN);
-                                CalculateShear(result, myParams, myLabel, element, storageDocument.ResultsManager, elemVZ);
+                                Result result2 = new Result();
+                                CalculateBending(result2, myParams, myLabel, element, storageDocument.ResultsManager, elemMY, elemMZ, elemN);
+                                CalculateShear(result2, myParams, myLabel, element, storageDocument.ResultsManager, elemVZ);
                                 
                             }
                         }
                     }
                 }
             }
+
+
+            Autodesk.Revit.DB.ExtensibleStorage.Framework.Documentation.Document repdocument = new Autodesk.Revit.DB.ExtensibleStorage.Framework.Documentation.Document();
+            Result result = new Result();
+            DocumentBody.FillBody(result, repdocument.Main, this, data.Document);
+            HtmlBuilder htmlBuilder = new HtmlBuilder();
+            htmlBuilder.BuildDocument(repdocument, data.Document, "C:\\tmp\\result", DetailLevel.Detail);
 
             ResultsPackageBuilder builder = storageDocument.CalculationParamsManager.CalculationParams.GetOutputResultPackageBuilder(ID);
             //do something here
